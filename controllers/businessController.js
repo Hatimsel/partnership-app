@@ -1,5 +1,6 @@
 // controllers/businessController.js
 const Business = require('../models/Business');
+const Intermediary = require('../models/Intermediary');
 const User = require('../models/User');
 
 exports.createPartnership = async (req, res) => {
@@ -11,12 +12,26 @@ exports.createPartnership = async (req, res) => {
       return res.status(400).json({ msg: 'Business not found' });
     }
 
-    const intermediary = await User.findById(intermediaryId);
-    if (!intermediary || intermediary.role !== 'intermediary') {
+    const existingPartnership = business.partnerships.find(
+      (partnership) => partnership.intermediary.toString() === intermediaryId
+    );
+
+    if (existingPartnership) {
+      return res.status(400).json({ msg: 'Partnership already exists' });
+    }
+
+    const intermediary = await Intermediary.findOne({ user: intermediaryId });
+    intermediary.partnerships.push({ business: business.id });
+    await intermediary.save();
+
+    if (!intermediary) {
       return res.status(400).json({ msg: 'Invalid intermediary' });
     }
 
-    business.partnerships.push({ intermediary: intermediaryId, commissionRate });
+    business.partnerships.push({
+      intermediary: intermediaryId,
+      commissionRate
+    });
     await business.save();
 
     res.json(business);
@@ -28,7 +43,7 @@ exports.createPartnership = async (req, res) => {
 
 exports.getPartnerships = async (req, res) => {
   try {
-    const business = await Business.findOne({ user: req.user.id }).populate('partnerships.intermediary', 'name');
+    const business = await Business.findOne({ user: req.user.id });
     if (!business) {
       return res.status(400).json({ msg: 'Business not found' });
     }
@@ -47,5 +62,34 @@ exports.getBusinesses = async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+exports.deletePartnership = async (req, res) => {
+  const { intermediaryId } = req.body;
+
+  try {
+    const business = await Business.findOne({ user: req.user.id });
+    if (!business) {
+      return res.status(400).json({ msg: 'Business not found' });
+    }
+
+    // Check if the partnership exists
+    const partnershipIndex = business.partnerships.findIndex(
+      (partnership) => partnership.intermediary.toString() === intermediaryId
+    );
+
+    if (partnershipIndex === -1) {
+      return res.status(400).json({ msg: 'Partnership not found' });
+    }
+
+    // Remove the partnership
+    business.partnerships.splice(partnershipIndex, 1);
+    await business.save();
+
+    return res.json({ msg: 'Partnership deleted successfully' });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).send('Server error');
   }
 };

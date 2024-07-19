@@ -14,11 +14,15 @@ exports.makeReservation = async (req, res) => {
     }
 
     const business = await Business.findById(businessId);
+    console.log(business);
     if (!business) {
       return res.status(400).json({ msg: 'Business not found' });
     }
 
-    const partnership = business.partnerships.find(partner => partner.intermediary.toString() === intermediary.id);
+    // Checking if this intermediary is a partner
+    const partnership = business.partnerships.find(partner => {
+      return partner.intermediary.toString() === intermediary.user.toString()
+    });
     if (!partnership) {
       return res.status(403).json({ msg: 'No partnership with this business' });
     }
@@ -43,6 +47,40 @@ exports.makeReservation = async (req, res) => {
     res.status(500).send('Server error');
   }
 };
+
+exports.deleteReservation = async (req, res) => {
+  const { reservationId } = req.body;
+
+  if (!reservationId) {
+    return res.json({ msg: "Please provide a valid reservation Id" });
+  }
+
+  try {
+    const intermediary = await Intermediary.findOne({ user: req.user.id });
+
+    if (!intermediary) {
+      return res.status(404).json({ msg: 'Intermediary not found' });
+    }
+
+    // Check if the reservation exists
+    const reservationIndex = intermediary.reservations.findIndex(
+      (reservation) => reservation.toString() === reservationId
+    );
+
+    if (reservationIndex === -1) {
+      return res.status(400).json({ msg: 'Reservation not found' });
+    }
+
+    // Remove the partnership
+    intermediary.reservations.splice(reservationIndex, 1);
+    await intermediary.save();
+
+    return res.json({ msg: 'Reservation deleted successfully' });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).send('Server error');
+  }
+}
 
 exports.getReservationsByIntermediary = async (req, res) => {
   try {

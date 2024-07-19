@@ -13,6 +13,10 @@ const BusinessSchema = new mongoose.Schema({
         ref: 'Intermediary',
         required: true,
       },
+      commissionRate: {
+        type: Number,
+        required: true
+      }
     },
   ],
   reservations: [
